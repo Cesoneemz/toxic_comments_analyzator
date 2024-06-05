@@ -1,9 +1,17 @@
-FROM python:3.12
+FROM python:3.12 as builder
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir fastapi uvicorn joblib catboost pandas scikit-learn nltk
+RUN pip install --no-cache-dir fastapi uvicorn joblib catboost pandas scikit-learn
+
+COPY . .
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY . .
 
