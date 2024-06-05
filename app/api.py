@@ -1,25 +1,42 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import joblib
 
-from app.model import predict_toxity, load_model
 
 app = FastAPI()
+model = None
+
+model_path = 'catboost_pipeline_gpu.pkl'
 
 class PredictionRequest(BaseModel):
     text: str 
 
 class PredictionResponse(BaseModel):
+    text: str
     label: str
-    confidence: float
 
 @app.on_event("startup")
 async def startup_event():
-    load_model()
+    global model
+    try:
+        model = joblib.load(model_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Model loading failed")
 
 @app.post("/predict/", response_model=PredictionResponse)
 async def predict(request: PredictionRequest) -> PredictionResponse:
-    prediction = predict_toxity(request.text)
-    return PredictionResponse(**prediction)
+    try:
+        # Предсказание токсичности комментария
+        prediction = model.predict([request.text])
+        class_names = ["Not Toxic", "Toxic"]
+        result = PredictionResponse(
+            text=request.text,
+            label=class_names[int(prediction[0])]
+        )
+        return result
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Prediction failed")
 
 if __name__ == '__main__':
     import uvicorn
